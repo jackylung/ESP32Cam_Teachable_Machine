@@ -85,6 +85,7 @@ bool hwStartupDone = false;
 String pendingClass = "";
 float pendingProb = 0.0;
 bool pendingDetection = false;
+String lastTriggeredClass = "";  // 鎖定：同一類別不重複觸發，直到物體離開
 Servo myservo;
 
 // === WiFi 連線模式 ===
@@ -271,6 +272,8 @@ void setup() {
   delay(servoStopTime);
   myservo.write(servoPosMax);
   delay(servoStopTime);
+  myservo.write(servoPosMin);
+  delay(servoStopTime);
   myservo.write(servoPosCenter);
   delay(servoStopTime);
   Serial.println("Servo calibration done");
@@ -302,19 +305,33 @@ void loop() {
 
   // 硬體狀態機（非阻塞）
   if (hwStartupDone) {
-    // 檢查是否有新的偵測結果
-    if (pendingDetection && hwState == HW_IDLE) {
+    // 處理每個新的偵測結果（無論是否鎖定，都更新類別判斷）
+    if (pendingDetection) {
       pendingDetection = false;
       String cls = pendingClass;
       float prob = pendingProb;
-      if (cls == "PET" && prob > acceptanceRate) {
-        hwClass = "PET";
-        hwTargetPos = servoPosMax;
-        hwState = HW_TRIGGERED;
-      } else if (cls == "CAN" && prob > acceptanceRate) {
-        hwClass = "CAN";
-        hwTargetPos = servoPosMin;
-        hwState = HW_TRIGGERED;
+
+      if (hwState == HW_IDLE) {
+        if (lastTriggeredClass != "") {
+          // 鎖定中：檢查物體是否已離開（改為其他類別或信心度低於門檻）
+          if (cls != lastTriggeredClass || prob < acceptanceRate) {
+            lastTriggeredClass = "";
+          }
+        }
+        if (lastTriggeredClass == "") {
+          // 未鎖定：檢查是否觸發新的偵測
+          if (cls == "PET" && prob > acceptanceRate) {
+            hwClass = "PET";
+            hwTargetPos = servoPosMax;
+            hwState = HW_TRIGGERED;
+            lastTriggeredClass = "PET";
+          } else if (cls == "CAN" && prob > acceptanceRate) {
+            hwClass = "CAN";
+            hwTargetPos = servoPosMin;
+            hwState = HW_TRIGGERED;
+            lastTriggeredClass = "CAN";
+          }
+        }
       }
     }
     switch (hwState) {
@@ -342,7 +359,7 @@ void loop() {
           digitalWrite(LED1_PIN, HIGH);
           digitalWrite(LED2_PIN, HIGH);
           hwState = HW_IDLE;
-          hwClass = "";
+          // 鎖定已由上述檢測結果更新邏輯在物體離開時清除
         }
         break;
       default:
