@@ -62,26 +62,47 @@ ESP32Cam_Teachable_Machine/
 所有控制參數統一寫在程式開頭（腳位定義、舵機角度、門檻值），可在 `#define` 與 `const int` 區塊集中修改。
 
 ## Wi-Fi 設定
-ESP32-CAM 以 **AP 模式（Wi-Fi 基地台）** 運作，手機直接連接 ESP32 的 AP，不需要額外路由器或熱點。
+ESP32-CAM 支援兩種連線模式，**二選一**，在 `esp32cam_TM.ino` 開頭註解/取消註解對應的 `#define` 來切換：
 
-檔案 `esp32cam_TM.ino` 中可修改 AP 名稱與密碼：
 ```cpp
-const char* apssid = "KTS_SmartBin_AP";   // AP 名稱
-const char* appassword = "12345678";       // AP 密碼（至少 8 字元）
+#define WIFI_MODE_AP    // ESP32 作為基地台，手機直接連接
+// #define WIFI_MODE_STA // ESP32 連線到現有 WiFi 路由器
 ```
 
+### AP 模式（預設）
+手機直接連接 ESP32 的 AP，不需要額外路由器或熱點。
+```cpp
+const char* apssid = "KTS_SmartBin_AP";
+const char* appassword = "12345678";
+```
 - **Web Server**：`http://192.168.4.1`（埠 80）
 - **Stream Server**：`http://192.168.4.1:81/stream`（埠 81）
 
-> 說明：為何不使用 STA 連線手機熱點？
-> ESP32 只有單一 WiFi 無線電，在 AP+STA 雙模式下 STA 掃描連線會干擾 AP 封包轉發，導致手機 HTTP 連線不穩定。純 AP 模式最穩定可靠。
+### STA 模式
+ESP32 連線到現有 WiFi 路由器，手機與 ESP32 在同一區域網路即可存取。
+```cpp
+const char* sta_ssid = "your_wifi_ssid";
+const char* sta_password = "your_wifi_password";
+```
+- 請透過 Serial Monitor 查看 DHCP 指派的 IP 位址
+- **Web Server**：`http://<DHCP_IP>`（埠 80）
+- **Stream Server**：`http://<DHCP_IP>:81/stream`（埠 81）
+
+> 注意：**兩種模式不可同時啟用**。AP+STA 雙模式會因單一無線電分時切換導致 AP 不穩定，故不支援。
 
 ## 使用流程
+### AP 模式
 1. ESP32-CAM 接電 → 自動啟動 AP
 2. 手機連接 ESP32 的 Wi-Fi（如 `KTS_SmartBin_AP`）
 3. 開啟瀏覽器輸入 `http://192.168.4.1`
 4. 頁面自動載入 TM 模型並開始辨識
 5. GPIO4 LED：模型載入中慢閃 → 載入完成熄滅
+
+### STA 模式
+1. ESP32-CAM 接電 → 自動連線 WiFi 路由器
+2. 透過 Serial Monitor 查看 ESP32 取得的 IP 位址
+3. 手機連線到同一個 WiFi 路由器
+4. 開啟瀏覽器輸入 ESP32 的 IP 位址
 
 ## 頁面配置
 - **偵測結果**：顯示在影像下方、設定選單上方
@@ -109,6 +130,7 @@ http://<IP>/control?flash=val # 控制閃光燈
 http://<IP>/control?blink=1  # 啟動 LED 慢閃
 http://<IP>/control?blink=0  # 關閉 LED 慢閃
 http://<IP>/control?serial=<class>;<confidence>;stop  # 傳遞 TM 辨識結果
+http://<IP>/control?resetwifi=ssid;password  # 重設 WiFi 連線（僅 AP 模式）
 ```
 
 ## 更新 TM 模型（不需重燒韌體）
@@ -125,5 +147,5 @@ http://<IP>/control?serial=<class>;<confidence>;stop  # 傳遞 TM 辨識結果
 ## 注意事項
 - 使用 ESP32 Arduino Core 3.x，LEDC API 為 `ledcAttach(pin, freq, resolution)` 新版語法
 - 如需支援 Core 2.x，需將 `ledcAttach` 改回 `ledcAttachPin` + `ledcSetup`
-- 舵機控制使用 Arduino `Servo.h` 函式庫（ESP32 內建）
+- 舵機控制使用 Arduino `ESP32Servo.h` 函式庫（需在 Arduino 程式庫管理員安裝 ESP32Servo）
 - 不支援 LCD 顯示（已移除相關程式碼）

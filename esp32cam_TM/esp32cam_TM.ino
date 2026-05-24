@@ -1,3 +1,15 @@
+/**
+ * ESP32-CAM Teachable Machine
+ * 
+ * 連線模式切換：取消下方其中一行的註解來選擇模式（只能選擇一種）
+ *   WIFI_MODE_AP  — ESP32 作為基地台，手機直接連接（固定 IP 192.168.4.1）
+ *   WIFI_MODE_STA — ESP32 連線到現有 WiFi 路由器（IP 由 DHCP 指派）
+ */
+
+// === 請在此選擇連線模式（二選一）===
+#define WIFI_MODE_AP
+// #define WIFI_MODE_STA
+
 /*
 http://192.168.xxx.xxx             //網頁首頁管理介面
 http://192.168.xxx.xxx:81/stream   //取得串流影像       <img src="http://192.168.xxx.xxx:81/stream">
@@ -5,35 +17,30 @@ http://192.168.xxx.xxx/capture     //取得影像          <img src="http://192.
 http://192.168.xxx.xxx/status      //取得視訊參數值
 
 自訂指令格式 :  
-http://APIP/control?cmd=P1;P2;P3;P4;P5;P6;P7;P8;P9
-http://STAIP/control?cmd=P1;P2;P3;P4;P5;P6;P7;P8;P9
+http://IP/control?cmd=P1;P2;P3;P4;P5;P6;P7;P8;P9
+http://IP/control?var=<variable>&val=<value>
+http://IP/capture         # 取得單張影像
+http://IP/status           # 取得目前設定值 (JSON)
+http://IP/control?ip       # 取得 IP 位址
+http://IP/control?mac      # 取得 MAC 位址
+http://IP/control?flash=value             # 內建閃光燈 value= 0~255
+http://IP/control?digitalwrite=pin;value  # 數位輸出
+http://IP/control?analogwrite=pin;value   # 類比輸出
+http://IP/control?digitalread=pin         # 數位讀取
+http://IP/control?analogread=pin          # 類比讀取
+http://IP/control?touchread=pin           # 觸碰讀取
+http://IP/control?resetwifi=ssid;password # 重設 Wi-Fi（僅 AP 模式）
 
-預設AP端IP： 192.168.4.1
+官方指令格式 http://IP/control?var=***&val=***
+http://IP/control?var=framesize&val=value
+http://IP/control?var=quality&val=value
+http://IP/control?var=brightness&val=value
+http://IP/control?var=contrast&val=value
+http://IP/control?var=hmirror&val=value
+http://IP/control?var=vflip&val=value
+http://IP/control?var=flash&val=value
 
-自訂指令格式 http://192.168.xxx.xxx/control?cmd=P1;P2;P3;P4;P5;P6;P7;P8;P9
-http://192.168.xxx.xxx/control?ip                      //取得APIP, STAIP
-http://192.168.xxx.xxx/control?mac                     //取得MAC位址
-http://192.168.xxx.xxx/control?restart                 //重啟ESP32-CAM
-http://192.168.xxx.xxx/control?digitalwrite=pin;value  //數位輸出
-http://192.168.xxx.xxx/control?analogwrite=pin;value   //類比輸出
-http://192.168.xxx.xxx/control?digitalread=pin         //數位讀取
-http://192.168.xxx.xxx/control?analogread=pin          //類比讀取
-http://192.168.xxx.xxx/control?touchread=pin           //觸碰讀取
-http://192.168.xxx.xxx/control?resetwifi=ssid;password   //重設Wi-Fi網路
-http://192.168.xxx.xxx/control?flash=value             //內建閃光燈 value= 0~255
-
-官方指令格式 http://192.168.xxx.xxx/control?var=***&val=***
-http://192.168.xxx.xxx/control?var=framesize&val=value    // value = 10->UXGA(1600x1200), 9->SXGA(1280x1024), 8->XGA(1024x768) ,7->SVGA(800x600), 6->VGA(640x480), 5 selected=selected->CIF(400x296), 4->QVGA(320x240), 3->HQVGA(240x176), 0->QQVGA(160x120)
-http://192.168.xxx.xxx/control?var=quality&val=value      // value = 10 ~ 63
-http://192.168.xxx.xxx/control?var=brightness&val=value   // value = -2 ~ 2
-http://192.168.xxx.xxx/control?var=contrast&val=value     // value = -2 ~ 2
-http://192.168.xxx.xxx/control?var=hmirror&val=value      // value = 0 or 1 
-http://192.168.xxx.xxx/control?var=vflip&val=value        // value = 0 or 1 
-http://192.168.xxx.xxx/control?var=flash&val=value        // value = 0 ~ 255   
-      
-查詢Client端IP：
-查詢IP：http://192.168.4.1/?ip
-重設網路：http://192.168.4.1/?resetwifi=ssid;password
+查詢 IP：http://IP/?ip
 */
 // Select camera model
 //#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
@@ -80,9 +87,18 @@ float pendingProb = 0.0;
 bool pendingDetection = false;
 Servo myservo;
 
-// AP 網路設定（ESP32-CAM 以 AP 模式運作，手機直接連接）
+// === WiFi 連線模式 ===
+#ifdef WIFI_MODE_AP
+// AP 模式設定
 const char* apssid = "KTS_SmartBin_AP";
-const char* appassword = "12345678";         //AP密碼至少要8個字元以上
+const char* appassword = "12345678";
+#elif defined(WIFI_MODE_STA)
+// STA 模式設定（連線到現有 WiFi 路由器）
+const char* sta_ssid = "your_wifi_ssid";
+const char* sta_password = "your_wifi_password";
+#else
+#error "Please define WIFI_MODE_AP or WIFI_MODE_STA"
+#endif
 
 #include <WiFi.h>
 #include <esp32-hal-ledc.h>      //用於控制伺服馬達
@@ -212,13 +228,31 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
+  // === WiFi 連線（依 WIFI_MODE_AP / WIFI_MODE_STA 二選一）===
+#ifdef WIFI_MODE_AP
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP((String)apssid, appassword);
   delay(500);
-
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP());
+#elif defined(WIFI_MODE_STA)
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(sta_ssid, sta_password);
+  Serial.print("Connecting to WiFi");
+  unsigned long staStart = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - staStart < 10000) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("STA IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("STA connection failed, check ssid/password");
+  }
+#endif
   Serial.println("");
 
   startCameraServer();
@@ -499,6 +533,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         Feedback=String(touchRead(P1.toInt()));
       }
 #endif      
+#ifdef WIFI_MODE_AP
       else if (cmd=="resetwifi") {  //重設網路連線  
         for (int i=0;i<2;i++) {
           WiFi.begin(P1.c_str(), P2.c_str());
@@ -527,6 +562,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
           }
         }
       }
+#endif
 #if defined(CAMERA_MODEL_AI_THINKER)       
       else if (cmd=="flash") {  //控制內建閃光燈
         ledcAttach(4, 5000, 8);   
