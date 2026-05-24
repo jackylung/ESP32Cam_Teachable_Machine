@@ -75,8 +75,7 @@ ESP32-CAM 支援兩種連線模式，**二選一**，在 `esp32cam_TM.ino` 開�
 const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";
 ```
-- **Web Server**：`http://192.168.4.1`（埠 80）
-- **Stream Server**：`http://192.168.4.1:81/stream`（埠 81）
+- **Web Server**：`http://192.168.4.1`
 
 ### STA 模式
 ESP32 連線到現有 WiFi 路由器，手機與 ESP32 在同一區域網路即可存取。
@@ -85,17 +84,16 @@ const char* sta_ssid = "your_wifi_ssid";
 const char* sta_password = "your_wifi_password";
 ```
 - 請透過 Serial Monitor 查看 DHCP 指派的 IP 位址
-- **Web Server**：`http://<DHCP_IP>`（埠 80）
-- **Stream Server**：`http://<DHCP_IP>:81/stream`（埠 81）
+- **Web Server**：`http://<DHCP_IP>`
 
 > 注意：**兩種模式不可同時啟用**。AP+STA 雙模式會因單一無線電分時切換導致 AP 不穩定，故不支援。
 
 ## 使用流程
 ### AP 模式
 1. ESP32-CAM 接電 → 自動啟動 AP
-2. 手機連接 ESP32 的 Wi-Fi（如 `KTS_SmartBin_AP`）
+2. 手機連接 ESP32 的 Wi-Fi（如 `KTS_SmartBin_AP`）（手機須開啟行動數據以下載 TM 模型）
 3. 開啟瀏覽器輸入 `http://192.168.4.1`
-4. 頁面自動載入 TM 模型並開始辨識
+4. 頁面自動載入 TM 模型並開始辨識（每 1 秒擷取一張 `/capture` 靜態影像進行預測）
 5. GPIO4 LED：模型載入中慢閃 → 載入完成熄滅
 
 ### STA 模式
@@ -103,6 +101,8 @@ const char* sta_password = "your_wifi_password";
 2. 透過 Serial Monitor 查看 ESP32 取得的 IP 位址
 3. 手機連線到同一個 WiFi 路由器
 4. 開啟瀏覽器輸入 ESP32 的 IP 位址
+
+> 預測流程：瀏覽器每 `predictInterval` ms 透過 HTTP GET 向 `/capture` 索取一張 JPEG 靜態影像，再餵入 TM 模型進行辨識。此方式取代傳統 MJPEG 串流（已移除），大幅降低 Wi-Fi 頻寬負載，讓 1fps 預測更加穩定。
 
 ## 頁面配置
 - **偵測結果**：顯示在影像下方、設定選單上方

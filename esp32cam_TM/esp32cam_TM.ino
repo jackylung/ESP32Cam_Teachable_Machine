@@ -701,8 +701,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
     <body>
         <section class="main">
             <figure>
-              <div id="stream-container" class="image-container hidden">
-                <div class="close" id="close-stream">×</div>
+              <div id="stream-container" class="image-container">
                 <img id="stream" src="" crossorigin="anonymous">
                 <canvas id="canvas" width="0" height="0" style="display:none"></canvas>
               </div>
@@ -775,7 +774,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
 
         <script>
         var baseHost = document.location.origin;
-        var streamUrl = baseHost + ':81';
         const MODEL_URL = "https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/";
         const CACHE_BUST = "?v=" + Date.now();
 
@@ -800,9 +798,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             log("streamUrl: " + streamUrl);
             log("MODEL_URL: " + MODEL_URL + CACHE_BUST);
             const hide = el => el.classList.add('hidden');
-            const show = el => el.classList.remove('hidden');
-            const disable = el => { el.classList.add('disabled'); el.disabled = true; };
-            const enable = el => { el.classList.remove('disabled'); el.disabled = false; };
 
             const updateValue = (el, value, updateRemote) => {
               updateRemote = updateRemote == null ? true : updateRemote;
@@ -844,19 +839,10 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
               .catch(e => log("status fetch error: " + e.message));
 
             const view = document.getElementById('stream');
-            const viewContainer = document.getElementById('stream-container');
-            const closeButton = document.getElementById('close-stream');
-
-            closeButton.onclick = () => { view.src = ""; hide(viewContainer); };
 
             document.querySelectorAll('.default-action').forEach(el => {
               el.onchange = () => updateConfig(el);
             });
-
-            // Auto-start stream
-            view.src = `${streamUrl}/stream`;
-            show(viewContainer);
-            log("stream started: " + view.src);
 
             // Auto-load model with LED blink
             log("starting loadModel...");
@@ -899,33 +885,45 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             var context = canvas.getContext('2d');
             var result = document.getElementById('result');
 
-            canvas.width = view.width;
-            canvas.height = view.height;
-            context.drawImage(view, 0, 0, view.width, view.height);
+            try {
+                var resp = await fetch(baseHost + '/capture?t=' + Date.now());
+                var blob = await resp.blob();
+                var url = URL.createObjectURL(blob);
+                view.src = url;
+                view.onload = async function() {
+                    canvas.width = view.width;
+                    canvas.height = view.height;
+                    context.drawImage(view, 0, 0, view.width, view.height);
+                    URL.revokeObjectURL(url);
 
-            var prediction;
-            if (MODEL_KIND == "image") {
-                prediction = await Model.predict(canvas);
-            } else {
-                var { pose, posenetOutput } = await Model.estimatePose(canvas);
-                prediction = await Model.predict(posenetOutput);
+                    var prediction;
+                    if (MODEL_KIND == "image") {
+                        prediction = await Model.predict(canvas);
+                    } else {
+                        var { pose, posenetOutput } = await Model.estimatePose(canvas);
+                        prediction = await Model.predict(posenetOutput);
+                    }
+
+                    var data = "";
+                    var maxClass = "", maxProb = 0;
+                    for (let i = 0; i < maxPredictions; i++) {
+                        if (prediction[i].probability > maxProb) {
+                            maxClass = prediction[i].className;
+                            maxProb = prediction[i].probability;
+                        }
+                        data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
+                    }
+                    result.innerHTML = "<strong>" + maxClass + "</strong> " + (maxProb*100).toFixed(1) + "%<br><br>" + data;
+                    log("predict: " + maxClass + " " + maxProb.toFixed(4));
+
+                    fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
+
+                    setTimeout(predictLoop, predictInterval);
+                };
+            } catch(e) {
+                log("capture error: " + e.message);
+                setTimeout(predictLoop, predictInterval);
             }
-
-            var data = "";
-            var maxClass = "", maxProb = 0;
-            for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > maxProb) {
-                    maxClass = prediction[i].className;
-                    maxProb = prediction[i].probability;
-                }
-                data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
-            }
-            result.innerHTML = "<strong>" + maxClass + "</strong> " + (maxProb*100).toFixed(1) + "%<br><br>" + data;
-            log("predict: " + maxClass + " " + maxProb.toFixed(4));
-
-            fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
-
-            setTimeout(predictLoop, predictInterval);
         }
         </script>
     </body>
