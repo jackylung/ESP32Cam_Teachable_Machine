@@ -65,8 +65,8 @@ ESP32Cam_Teachable_Machine/
 ESP32-CAM 支援兩種連線模式，**二選一**，在 `esp32cam_TM.ino` 開頭註解/取消註解對應的 `#define` 來切換：
 
 ```cpp
-#define WIFI_MODE_AP    // ESP32 作為基地台，手機直接連接
-// #define WIFI_MODE_STA // ESP32 連線到現有 WiFi 路由器
+#define WIFI_AP_MODE    // ESP32 作為基地台，手機直接連接
+// #define WIFI_STA_MODE // ESP32 連線到現有 WiFi 路由器
 ```
 
 ### AP 模式（預設）
@@ -112,12 +112,18 @@ const char* sta_password = "your_wifi_password";
 | 設定 | 說明 |
 |------|------|
 | Flash | 內建閃光燈亮度 (0~255) |
-| Resolution | 影像解析度 |
+| Resolution | 影像解析度（預設 QQVGA 160×120，降低頻寬提升穩定度） |
 | Quality | JPEG 壓縮品質 (10~63) |
 | Brightness | 亮度 (-2~2) |
 | Contrast | 對比度 (-2~2) |
 | H-Mirror | 水平鏡像 |
 | V-Flip | 垂直翻轉 |
+
+## 預測設定（在程式開頭 `const int` 區塊修改）
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `predictInterval` | 1000 | 預測間隔（ms），每次向 `/capture` 索取單張 JPEG |
+| `acceptanceRate` | 0.7 | 觸發舵機/LED 的信心度門檻 |
 
 ## 自訂 HTTP API
 ```
