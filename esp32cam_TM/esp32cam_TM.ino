@@ -592,7 +592,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             <figure>
               <div id="stream-container" class="image-container hidden">
                 <div class="close" id="close-stream">×</div>
-                <img id="stream" src="" style="display:none" crossorigin="anonymous">
+                <img id="stream" src="" crossorigin="anonymous">
                 <canvas id="canvas" width="0" height="0"></canvas>
               </div>
             </figure>         
@@ -666,18 +666,29 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         </section>
         <br>
         <div id="result" style="color:red"></div>
+        <div id="debug" style="font-size:12px;color:#888;margin-top:8px"></div>
         
         <script>
         var baseHost = document.location.origin;
         var streamUrl = baseHost + ':81';
         const MODEL_URL = "https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/";
         const CACHE_BUST = "?v=" + Date.now();
+
+        function log(msg) {
+            console.log(msg);
+            var el = document.getElementById('debug');
+            if (el) el.innerHTML += msg + "<br>";
+        }
         const MODEL_KIND = "image";
         let Model = null;
         let maxPredictions = 0;
         let predictTimer = null;
 
         document.addEventListener('DOMContentLoaded', function (event) {
+            log("DOMContentLoaded fired");
+            log("baseHost: " + baseHost);
+            log("streamUrl: " + streamUrl);
+            log("MODEL_URL: " + MODEL_URL + CACHE_BUST);
             const hide = el => el.classList.add('hidden');
             const show = el => el.classList.remove('hidden');
             const disable = el => { el.classList.add('disabled'); el.disabled = true; };
@@ -713,12 +724,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             });
 
             fetch(`${baseHost}/status`)
-              .then(res => res.json())
+              .then(res => { log("status fetch: " + res.status); return res.json(); })
               .then(state => {
                 document.querySelectorAll('.default-action').forEach(el => {
                   updateValue(el, state[el.id], false);
                 });
-              });
+                log("settings loaded from ESP32");
+              })
+              .catch(e => log("status fetch error: " + e.message));
 
             const view = document.getElementById('stream');
             const viewContainer = document.getElementById('stream-container');
@@ -733,31 +746,44 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             // Auto-start stream
             view.src = `${streamUrl}/stream`;
             show(viewContainer);
+            log("stream started: " + view.src);
 
             // Auto-load model with LED blink
+            log("starting loadModel...");
             loadModel();
         });
 
         var loadModel = async () => {
             var result = document.getElementById('result');
+            log("loadModel: starting blink");
             fetch(baseHost + '/control?cmd=blink;1');
             result.innerHTML = "Loading model...";
+            log("loadModel: fetching from " + MODEL_URL + "model.json" + CACHE_BUST);
             try {
+                var t0 = Date.now();
                 if (MODEL_KIND == "image") {
+                    log("loadModel: loading tmImage...");
                     Model = await tmImage.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
                 } else {
+                    log("loadModel: loading tmPose...");
                     Model = await tmPose.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
                 }
+                var t1 = Date.now();
                 maxPredictions = Model.getTotalClasses();
+                log("loadModel: loaded in " + (t1-t0) + "ms, classes: " + maxPredictions);
                 result.innerHTML = "";
             } catch(e) {
+                log("loadModel ERROR: " + e.message);
                 result.innerHTML = "Model load failed: " + e.message;
             }
+            log("loadModel: stopping blink");
             fetch(baseHost + '/control?cmd=blink;0');
         }
 
         document.getElementById('stream').onload = function () {
-            if (!Model || predictTimer) return;
+            if (!Model) { log("stream frame arrived but Model not ready yet"); return; }
+            if (predictTimer) return;
+            log("stream frame: starting prediction (throttled)");
             predictTimer = setTimeout(async () => {
                 predictTimer = null;
                 var view = document.getElementById('stream');
@@ -787,9 +813,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                     data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
                 }
                 result.innerHTML = data + "<br>Result: " + maxClass + "," + maxProb.toFixed(4);
+                log("predict: " + maxClass + " " + maxProb.toFixed(4));
 
                 fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
             }, 250);
+        };
+
+        document.getElementById('stream').onerror = function (e) {
+            log("stream ERROR: " + (e.message || "unknown"));
         };
         </script>
     </body>
