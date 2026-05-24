@@ -5,7 +5,7 @@ ESP32-CAM (AI Thinker) 結合 TensorFlow.js Teachable Machine 的即時影像辨
 ## 硬體需求
 - ESP32-CAM 開發板（AI Thinker 型号，具備 PSRAM）
 - FTDI 燒錄器（3.3V）
-- 手機熱點（Wi-Fi）
+- 手機 / 平板 / 筆電（Wi-Fi 用戶端）
 
 ## 專案結構
 ```
@@ -46,20 +46,24 @@ ESP32Cam_Teachable_Machine/
 5. 按 RST 重啟
 
 ## Wi-Fi 設定
-檔案 `esp32cam_TM.ino` 中修改：
+ESP32-CAM 以 **AP 模式（Wi-Fi 基地台）** 運作，手機直接連接 ESP32 的 AP，不需要額外路由器或熱點。
+
+檔案 `esp32cam_TM.ino` 中可修改 AP 名稱與密碼：
 ```cpp
-const char* ssid     = "你的手機熱點名稱";
-const char* password = "你的手機熱點密碼";
+const char* apssid = "KTS_SmartBin_AP";   // AP 名稱
+const char* appassword = "12345678";       // AP 密碼（至少 8 字元）
 ```
 
-ESP32-CAM 開機後會自動連線手機熱點，連線成功後 Server 啟動：
-- **Web Server**：`http://<ESP32_IP>`（埠 80）
-- **Stream Server**：`http://<ESP32_IP>:81/stream`（埠 81）
+- **Web Server**：`http://192.168.4.1`（埠 80）
+- **Stream Server**：`http://192.168.4.1:81/stream`（埠 81）
+
+> 說明：為何不使用 STA 連線手機熱點？
+> ESP32 只有單一 WiFi 無線電，在 AP+STA 雙模式下 STA 掃描連線會干擾 AP 封包轉發，導致手機 HTTP 連線不穩定。純 AP 模式最穩定可靠。
 
 ## 使用流程
-1. 手機開啟熱點（SSID/密碼需與程式一致）
-2. ESP32-CAM 接電 → 自動連線熱點
-3. 開啟瀏覽器輸入 ESP32 的 IP 位址
+1. ESP32-CAM 接電 → 自動啟動 AP
+2. 手機連接 ESP32 的 Wi-Fi（如 `KTS_SmartBin_AP`）
+3. 開啟瀏覽器輸入 `http://192.168.4.1`
 4. 頁面自動載入 TM 模型並開始辨識
 5. GPIO4 LED：模型載入中慢閃 → 載入完成熄滅
 

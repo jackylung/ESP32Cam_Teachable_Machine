@@ -48,11 +48,7 @@ http://192.168.xxx.xxx/control?var=flash&val=value        // value = 0 ~ 255
 
 #include "camera_pins.h"
 
-//輸入WIFI連線帳號密碼
-const char* ssid     = "ktssmartbin";   //your network SSID
-const char* password = "26059033";   //your network password
-
-//輸入AP端連線帳號密碼
+// AP 網路設定（ESP32-CAM 以 AP 模式運作，手機直接連接）
 const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";         //AP密碼至少要8個字元以上
 
@@ -101,7 +97,6 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 bool ledBlink = false;
-bool staConnected = false;
 
 // 前向宣告（Arduino IDE 因 raw string literal 無法自動產生 prototype）
 void startCameraServer();
@@ -185,8 +180,7 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
-  WiFi.disconnect(true);  // 清除任何自動連線狀態
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP((String)apssid, appassword);
   delay(500);
@@ -195,12 +189,7 @@ void setup() {
   Serial.println(WiFi.softAPIP());
   Serial.println("");
 
-  // 先啟動 Web Server，讓 AP 用戶端可以立即連線
   startCameraServer();
-
-  // 非阻塞 STA 連線（背景執行，不影響 AP 服務）
-  WiFi.begin(ssid, password);
-  Serial.println("STA connection initiated (non-blocking)");
 
 #if defined(CAMERA_MODEL_AI_THINKER)
   pinMode(4, OUTPUT);
@@ -219,24 +208,6 @@ void loop() {
       ledState = !ledState;
       digitalWrite(4, ledState ? HIGH : LOW);
       lastBlink = now;
-    }
-  }
-
-  // STA 連線狀態監控（非阻塞背景檢查）
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!staConnected) {
-      staConnected = true;
-      // STA 連線成功，更新 AP SSID 顯示客戶端 IP
-      WiFi.softAP((WiFi.localIP().toString()+"_"+(String)apssid).c_str(), appassword);
-      Serial.print("STA connected: ");
-      Serial.println(WiFi.localIP());
-    }
-  } else {
-    if (staConnected) {
-      staConnected = false;
-      // STA 斷線，恢復預設 AP SSID（不自動重連，避免干擾 AP）
-      WiFi.softAP((String)apssid, appassword);
-      Serial.println("STA disconnected, restoring AP SSID");
     }
   }
 #endif
