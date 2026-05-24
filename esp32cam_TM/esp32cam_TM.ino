@@ -795,7 +795,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         document.addEventListener('DOMContentLoaded', function (event) {
             log("DOMContentLoaded fired");
             log("baseHost: " + baseHost);
-            log("streamUrl: " + streamUrl);
             log("MODEL_URL: " + MODEL_URL + CACHE_BUST);
             const hide = el => el.classList.add('hidden');
 
