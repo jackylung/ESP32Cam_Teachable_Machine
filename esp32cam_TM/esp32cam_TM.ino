@@ -665,7 +665,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             </div>
         </section>
         <br>
-        <div id="result" style="color:red"></div>
+        <div id="result" style="color:red;font-size:18px;text-align:center;padding:10px;background:#222;border-radius:5px"></div>
         <div id="debug" style="font-size:12px;color:#888;margin-top:8px"></div>
         
         <script>
@@ -682,7 +682,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         const MODEL_KIND = "image";
         let Model = null;
         let maxPredictions = 0;
-        let predictTimer = null;
 
         document.addEventListener('DOMContentLoaded', function (event) {
             log("DOMContentLoaded fired");
@@ -708,7 +707,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
               if (updateRemote && initialValue !== value) updateConfig(el);
             };
 
-            function updateConfig (el) {
+            var updateConfig = function (el) {
               let value;
               switch (el.type) {
                 case 'checkbox': value = el.checked ? 1 : 0; break;
@@ -772,56 +771,51 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 maxPredictions = Model.getTotalClasses();
                 log("loadModel: loaded in " + (t1-t0) + "ms, classes: " + maxPredictions);
                 result.innerHTML = "";
+                log("loadModel: stopping blink, starting predict loop");
+                fetch(baseHost + '/control?cmd=blink;0');
+                setTimeout(predictLoop, 500);
             } catch(e) {
                 log("loadModel ERROR: " + e.message);
                 result.innerHTML = "Model load failed: " + e.message;
+                fetch(baseHost + '/control?cmd=blink;0');
             }
-            log("loadModel: stopping blink");
-            fetch(baseHost + '/control?cmd=blink;0');
         }
 
-        document.getElementById('stream').onload = function () {
-            if (!Model) { log("stream frame arrived but Model not ready yet"); return; }
-            if (predictTimer) return;
-            log("stream frame: starting prediction (throttled)");
-            predictTimer = setTimeout(async () => {
-                predictTimer = null;
-                var view = document.getElementById('stream');
-                var canvas = document.getElementById('canvas');
-                var context = canvas.getContext('2d');
-                var result = document.getElementById('result');
+        var predictLoop = async () => {
+            if (!Model) return;
+            var view = document.getElementById('stream');
+            var canvas = document.getElementById('canvas');
+            var context = canvas.getContext('2d');
+            var result = document.getElementById('result');
 
-                canvas.width = view.width;
-                canvas.height = view.height;
-                context.drawImage(view, 0, 0, view.width, view.height);
+            canvas.width = view.width;
+            canvas.height = view.height;
+            context.drawImage(view, 0, 0, view.width, view.height);
 
-                var prediction;
-                if (MODEL_KIND == "image") {
-                    prediction = await Model.predict(canvas);
-                } else {
-                    var { pose, posenetOutput } = await Model.estimatePose(canvas);
-                    prediction = await Model.predict(posenetOutput);
+            var prediction;
+            if (MODEL_KIND == "image") {
+                prediction = await Model.predict(canvas);
+            } else {
+                var { pose, posenetOutput } = await Model.estimatePose(canvas);
+                prediction = await Model.predict(posenetOutput);
+            }
+
+            var data = "";
+            var maxClass = "", maxProb = 0;
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > maxProb) {
+                    maxClass = prediction[i].className;
+                    maxProb = prediction[i].probability;
                 }
+                data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
+            }
+            result.innerHTML = "<strong>" + maxClass + "</strong> " + (maxProb*100).toFixed(1) + "%<br><br>" + data;
+            log("predict: " + maxClass + " " + maxProb.toFixed(4));
 
-                var data = "";
-                var maxClass = "", maxProb = 0;
-                for (let i = 0; i < maxPredictions; i++) {
-                    if (prediction[i].probability > maxProb) {
-                        maxClass = prediction[i].className;
-                        maxProb = prediction[i].probability;
-                    }
-                    data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
-                }
-                result.innerHTML = data + "<br>Result: " + maxClass + "," + maxProb.toFixed(4);
-                log("predict: " + maxClass + " " + maxProb.toFixed(4));
+            fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
 
-                fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
-            }, 250);
-        };
-
-        document.getElementById('stream').onerror = function (e) {
-            log("stream ERROR: " + (e.message || "unknown"));
-        };
+            setTimeout(predictLoop, 500);
+        }
         </script>
     </body>
 </html>)rawliteral";
