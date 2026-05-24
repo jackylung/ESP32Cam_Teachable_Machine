@@ -94,8 +94,8 @@ const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";
 #elif defined(WIFI_MODE_STA)
 // STA 模式設定（連線到現有 WiFi 路由器）
-const char* sta_ssid = "your_wifi_ssid";
-const char* sta_password = "your_wifi_password";
+const char* sta_ssid = "Smile 3A";
+const char* sta_password = "3a2l20220303";
 #else
 #error "Please define WIFI_MODE_AP or WIFI_MODE_STA"
 #endif
