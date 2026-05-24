@@ -184,60 +184,14 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
-  WiFi.mode(WIFI_AP_STA);
-  // 先啟動 AP，確保不管 STA 連線成功與否都有 AP 可用
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP((String)apssid, appassword);
-
-  for (int i=0;i<2;i++) {
-    WiFi.begin(ssid, password);    //執行網路連線
-  
-    delay(1000);
-    Serial.println("");
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
-    
-    long int StartTime=millis();
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        if ((StartTime+5000) < millis()) break;    //等待10秒連線
-    } 
-  
-    if (WiFi.status() == WL_CONNECTED) {    //若連線成功
-      WiFi.softAP((WiFi.localIP().toString()+"_"+(String)apssid).c_str(), appassword);   //更新 SSID 顯示客戶端 IP
-      Serial.println("");
-      Serial.println("STAIP address: ");
-      Serial.println(WiFi.localIP());
-      Serial.println("");
-
-#if defined(CAMERA_MODEL_AI_THINKER)
-      for (int j=0;j<5;j++) {   //若連上WIFI設定閃光燈快速閃爍
-        ledcWrite(4,10);
-        delay(200);
-        ledcWrite(4,0);
-        delay(200);    
-      }
-      break;
-#endif
-    }
-  } 
-
-  if (WiFi.status() != WL_CONNECTED) {    //若連線失敗
-    Serial.println("WiFi STA failed, AP is already running");
-            
-#if defined(CAMERA_MODEL_AI_THINKER)
-    for (int j=0;j<2;j++) {    //若連不上WIFI設定閃光燈慢速閃爍
-      ledcWrite(4,10);
-      delay(1000);
-      ledcWrite(4,0);
-      delay(1000);    
-    }
-#endif    
-  } 
+  delay(500);
   
   Serial.println("");
-  Serial.println("APIP address: ");
-  Serial.println(WiFi.softAPIP());  
+  Serial.print("AP IP address: ");
+  Serial.println(WiFi.softAPIP());
   Serial.println("");
   
   startCameraServer(); 
