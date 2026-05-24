@@ -184,10 +184,10 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
-  WiFi.mode(WIFI_AP_STA);  //其他模式 WiFi.mode(WIFI_AP); WiFi.mode(WIFI_STA);
-
-  //指定Client端靜態IP
-  //WiFi.config(IPAddress(192, 168, 201, 100), IPAddress(192, 168, 201, 2), IPAddress(255, 255, 255, 0));
+  WiFi.mode(WIFI_AP_STA);
+  // 先啟動 AP，確保不管 STA 連線成功與否都有 AP 可用
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP((String)apssid, appassword);
 
   for (int i=0;i<2;i++) {
     WiFi.begin(ssid, password);    //執行網路連線
@@ -204,7 +204,7 @@ void setup() {
     } 
   
     if (WiFi.status() == WL_CONNECTED) {    //若連線成功
-      WiFi.softAP((WiFi.localIP().toString()+"_"+(String)apssid).c_str(), appassword);   //設定SSID顯示客戶端IP         
+      WiFi.softAP((WiFi.localIP().toString()+"_"+(String)apssid).c_str(), appassword);   //更新 SSID 顯示客戶端 IP
       Serial.println("");
       Serial.println("STAIP address: ");
       Serial.println(WiFi.localIP());
@@ -223,10 +223,8 @@ void setup() {
   } 
 
   if (WiFi.status() != WL_CONNECTED) {    //若連線失敗
-    WiFi.disconnect();  // 停止 STA 連線嘗試，避免 softAP 衝突
-    delay(100);
-    WiFi.softAP((WiFi.softAPIP().toString()+"_"+(String)apssid).c_str(), appassword);
-           
+    Serial.println("WiFi STA failed, AP is already running");
+            
 #if defined(CAMERA_MODEL_AI_THINKER)
     for (int j=0;j<2;j++) {    //若連不上WIFI設定閃光燈慢速閃爍
       ledcWrite(4,10);
@@ -237,8 +235,6 @@ void setup() {
 #endif    
   } 
   
-  //指定AP端IP
-  //WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0)); 
   Serial.println("");
   Serial.println("APIP address: ");
   Serial.println(WiFi.softAPIP());  
