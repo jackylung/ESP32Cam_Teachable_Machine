@@ -887,37 +887,47 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 var resp = await fetch(baseHost + '/capture?t=' + Date.now());
                 var blob = await resp.blob();
                 var url = URL.createObjectURL(blob);
-                view.src = url;
                 view.onload = async function() {
-                    canvas.width = view.width;
-                    canvas.height = view.height;
-                    context.drawImage(view, 0, 0, view.width, view.height);
+                    var w = view.naturalWidth || view.width;
+                    var h = view.naturalHeight || view.height;
+                    if (w === 0 || h === 0) {
+                        log("predict: image has zero dimensions, skipping");
+                        setTimeout(predictLoop, predictInterval);
+                        return;
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    context.drawImage(view, 0, 0, w, h);
                     URL.revokeObjectURL(url);
 
-                    var prediction;
-                    if (MODEL_KIND == "image") {
-                        prediction = await Model.predict(canvas);
-                    } else {
-                        var { pose, posenetOutput } = await Model.estimatePose(canvas);
-                        prediction = await Model.predict(posenetOutput);
-                    }
-
-                    var data = "";
-                    var maxClass = "", maxProb = 0;
-                    for (let i = 0; i < maxPredictions; i++) {
-                        if (prediction[i].probability > maxProb) {
-                            maxClass = prediction[i].className;
-                            maxProb = prediction[i].probability;
+                    try {
+                        var prediction;
+                        if (MODEL_KIND == "image") {
+                            prediction = await Model.predict(canvas);
+                        } else {
+                            var r = await Model.estimatePose(canvas);
+                            prediction = await Model.predict(r.posenetOutput);
                         }
-                        data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
+
+                        var data = "";
+                        var maxClass = "", maxProb = 0;
+                        for (let i = 0; i < maxPredictions; i++) {
+                            if (prediction[i].probability > maxProb) {
+                                maxClass = prediction[i].className;
+                                maxProb = prediction[i].probability;
+                            }
+                            data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
+                        }
+                        result.innerHTML = "<strong>" + maxClass + "</strong> " + (maxProb*100).toFixed(1) + "%<br><br>" + data;
+                        log("predict: " + maxClass + " " + maxProb.toFixed(4));
+
+                        fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
+                    } catch(e) {
+                        log("predict error: " + e.message);
                     }
-                    result.innerHTML = "<strong>" + maxClass + "</strong> " + (maxProb*100).toFixed(1) + "%<br><br>" + data;
-                    log("predict: " + maxClass + " " + maxProb.toFixed(4));
-
-                    fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
-
                     setTimeout(predictLoop, predictInterval);
                 };
+                view.src = url;
             } catch(e) {
                 log("capture error: " + e.message);
                 setTimeout(predictLoop, predictInterval);
