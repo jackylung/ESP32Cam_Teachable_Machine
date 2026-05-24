@@ -7,8 +7,8 @@
  */
 
 // === 請在此選擇連線模式（二選一）===
-//#define WIFI_AP_MODE
-#define WIFI_STA_MODE
+#define WIFI_AP_MODE
+//#define WIFI_STA_MODE
 
 /*
 http://192.168.xxx.xxx             //網頁首頁管理介面
