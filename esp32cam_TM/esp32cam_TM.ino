@@ -593,7 +593,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
               <div id="stream-container" class="image-container hidden">
                 <div class="close" id="close-stream">×</div>
                 <img id="stream" src="" crossorigin="anonymous">
-                <canvas id="canvas" width="0" height="0"></canvas>
+                <canvas id="canvas" width="0" height="0" style="display:none"></canvas>
               </div>
             </figure>         
             <section id="buttons">
@@ -666,7 +666,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         </section>
         <br>
         <div id="result" style="color:red;font-size:18px;text-align:center;padding:10px;background:#222;border-radius:5px"></div>
-        <div id="debug" style="font-size:12px;color:#888;margin-top:8px"></div>
+        <div id="debug" style="font-size:12px;color:#888;margin-top:8px;max-height:150px;overflow-y:auto;background:#1a1a1a;padding:6px;border-radius:4px"></div>
         
         <script>
         var baseHost = document.location.origin;
@@ -677,7 +677,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         var log = function(msg) {
             console.log(msg);
             var el = document.getElementById('debug');
-            if (el) el.innerHTML += msg + "<br>";
+            if (!el) return;
+            el.innerHTML += msg + "<br>";
+            var lines = el.innerHTML.split("<br>");
+            if (lines.length > 50) {
+                el.innerHTML = lines.slice(lines.length - 50).join("<br>");
+            }
+            el.scrollTop = el.scrollHeight;
         }
         const MODEL_KIND = "image";
         let Model = null;
