@@ -100,11 +100,6 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
-bool ledBlink = false;
-
-// 前向宣告（Arduino IDE 因 raw string literal 無法自動產生 prototype）
-void startCameraServer();
-void getCommand(char c);
 
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);  //關閉電源不穩就重開機的設定   
@@ -252,18 +247,7 @@ void setup() {
 }
 
 void loop() {
-#if defined(CAMERA_MODEL_AI_THINKER)
-  static unsigned long lastBlink = 0;
-  static bool ledState = false;
-  if (ledBlink) {
-    unsigned long now = millis();
-    if (now - lastBlink >= 1000) {
-      ledState = !ledState;
-      digitalWrite(4, ledState ? HIGH : LOW);
-      lastBlink = now;
-    }
-  }
-#endif
+
 }
 
 static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len){
@@ -484,10 +468,6 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int val = P1.toInt();
         ledcWrite(4,val);  
       }
-      else if (cmd=="blink") {
-        ledBlink = P1.toInt() == 1;
-        if (!ledBlink) digitalWrite(4, LOW);
-      }
 #endif
       else if (cmd=="serial") { 
         if (P1!="" && P1!="stop") Serial.println(P1);
@@ -591,14 +571,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         <section class="main">
             <figure>
               <div id="stream-container" class="image-container hidden">
-                <div class="close" id="close-stream">×</div>
+                <div class="close" id="close-stream" style="display:none">×</div>
                 <img id="stream" src="" style="display:none" crossorigin="anonymous">
                 <canvas id="canvas" width="0" height="0"></canvas>
               </div>
             </figure>         
             <section id="buttons">
                 <table>
-                <tr><td><button id="restart" onclick="try{fetch(document.location.origin+'/control?restart');}catch(e){}">Restart</button></td></tr>
+                <tr><td><button id="restart" onclick="try{fetch(document.location.origin+'/control?restart');}catch(e){}">Restart</button></td><td><button id="get-still" style="display:none">Get Still</button></td><td><button id="toggle-stream" style="display:none"></td></tr>
                 </table>
             </section>        
             <div id="logo">
@@ -608,6 +588,21 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 <div id="sidebar">
                     <input type="checkbox" id="nav-toggle-cb">
                     <nav id="menu">
+                        <div class="input-group">
+                          <label for="kind">Kind</label>
+                          <select id="kind">
+                            <option value="image">image</option>
+                            <option value="pose">pose</option>
+                          </select>
+                        </div>
+                        <div class="input-group">
+                          <label for="modelPath">Model Path</label>
+                          <input type="text" id="modelPath" value="">
+                        </div>
+                        <div class="input-group">
+                            <label for="btnModel"></label>
+                            <button type="button" id="btnModel" onclick="LoadModel();">Start Recognition</button>
+                        </div>                                              
                         <div class="input-group" id="flash-group">
                             <label for="flash">Flash</label>
                             <div class="range-min">0</div>
@@ -665,132 +660,216 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             </div>
         </section>
         <br>
-        <div id="result" style="color:red"></div>
+        <div id="result" style="color:red"><div>
         
         <script>
-        var baseHost = document.location.origin;
-        var streamUrl = baseHost + ':81';
-        const MODEL_URL = "https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/";
-        const CACHE_BUST = "?v=" + Date.now();
-        const MODEL_KIND = "image";
-        let Model = null;
-        let maxPredictions = 0;
-        let predictTimer = null;
-
-        document.addEventListener('DOMContentLoaded', function (event) {
-            const hide = el => el.classList.add('hidden');
-            const show = el => el.classList.remove('hidden');
-            const disable = el => { el.classList.add('disabled'); el.disabled = true; };
-            const enable = el => { el.classList.remove('disabled'); el.disabled = false; };
-
+          document.addEventListener('DOMContentLoaded', function (event) {
+            var baseHost = document.location.origin
+            var streamUrl = baseHost + ':81'
+            const hide = el => {
+              el.classList.add('hidden')
+            }
+            const show = el => {
+              el.classList.remove('hidden')
+            }
+            const disable = el => {
+              el.classList.add('disabled')
+              el.disabled = true
+            }
+            const enable = el => {
+              el.classList.remove('disabled')
+              el.disabled = false
+            }
             const updateValue = (el, value, updateRemote) => {
-              updateRemote = updateRemote == null ? true : updateRemote;
-              let initialValue;
+              updateRemote = updateRemote == null ? true : updateRemote
+              let initialValue
               if (el.type === 'checkbox') {
-                initialValue = el.checked;
-                value = !!value;
-                el.checked = value;
+                initialValue = el.checked
+                value = !!value
+                el.checked = value
               } else {
-                initialValue = el.value;
-                el.value = value;
+                initialValue = el.value
+                el.value = value
               }
-              if (updateRemote && initialValue !== value) updateConfig(el);
-            };
-
+              if (updateRemote && initialValue !== value) {
+                updateConfig(el);
+              }
+            }
             function updateConfig (el) {
-              let value;
+              let value
               switch (el.type) {
-                case 'checkbox': value = el.checked ? 1 : 0; break;
-                case 'range': case 'select-one': value = el.value; break;
-                case 'button': case 'submit': value = '1'; break;
-                default: return;
+                case 'checkbox':
+                  value = el.checked ? 1 : 0
+                  break
+                case 'range':
+                case 'select-one':
+                  value = el.value
+                  break
+                case 'button':
+                case 'submit':
+                  value = '1'
+                  break
+                default:
+                  return
               }
-              fetch(`${baseHost}/control?var=${el.id}&val=${value}`);
+              const query = `${baseHost}/control?var=${el.id}&val=${value}`
+              fetch(query)
+                .then(response => {
+                  console.log(`request to ${query} finished, status: ${response.status}`)
+                })
             }
-
-            document.querySelectorAll('.close').forEach(el => {
-              el.onclick = () => hide(el.parentNode);
-            });
-
+            document
+              .querySelectorAll('.close')
+              .forEach(el => {
+                el.onclick = () => {
+                  hide(el.parentNode)
+                }
+              })
+            // read initial values
             fetch(`${baseHost}/status`)
-              .then(res => res.json())
-              .then(state => {
-                document.querySelectorAll('.default-action').forEach(el => {
-                  updateValue(el, state[el.id], false);
-                });
-              });
-
-            const view = document.getElementById('stream');
-            const viewContainer = document.getElementById('stream-container');
-            const closeButton = document.getElementById('close-stream');
-
-            closeButton.onclick = () => { view.src = ""; hide(viewContainer); };
-
-            document.querySelectorAll('.default-action').forEach(el => {
-              el.onchange = () => updateConfig(el);
-            });
-
-            // Auto-start stream
-            view.src = `${streamUrl}/stream`;
-            show(viewContainer);
-
-            // Auto-load model with LED blink
-            loadModel();
-        });
-
-        var loadModel = async () => {
-            var result = document.getElementById('result');
-            fetch(baseHost + '/control?cmd=blink;1');
-            result.innerHTML = "Loading model...";
-            try {
-                if (MODEL_KIND == "image") {
-                    Model = await tmImage.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
-                } else {
-                    Model = await tmPose.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
-                }
-                maxPredictions = Model.getTotalClasses();
-                result.innerHTML = "";
-            } catch(e) {
-                result.innerHTML = "Model load failed: " + e.message;
+              .then(function (response) {
+                return response.json()
+              })
+              .then(function (state) {
+                document
+                  .querySelectorAll('.default-action')
+                  .forEach(el => {
+                    updateValue(el, state[el.id], false)
+                  })
+              })
+            const view = document.getElementById('stream')
+            const viewContainer = document.getElementById('stream-container')
+            const stillButton = document.getElementById('get-still')
+            const streamButton = document.getElementById('toggle-stream')
+            const closeButton = document.getElementById('close-stream')
+            const stopStream = () => {
+              //window.stop();
+              view.src="";
+              streamButton.innerHTML = 'Start Stream'
             }
-            fetch(baseHost + '/control?cmd=blink;0');
+            const startStream = () => {
+              view.src = `${streamUrl}/stream`
+              show(viewContainer)
+              streamButton.innerHTML = 'Stop Stream'
+            }
+            // Attach actions to buttons
+            stillButton.onclick = () => {
+              stopStream()
+              try{
+                view.src = `${baseHost}/capture?_cb=${Date.now()}`
+              }
+              catch(e) {
+                view.src = `${baseHost}/capture?_cb=${Date.now()}`  
+              }
+              show(viewContainer)
+            }
+            closeButton.onclick = () => {
+              stopStream()
+              hide(viewContainer)
+            }
+            streamButton.onclick = () => {
+              const streamEnabled = streamButton.innerHTML === 'Stop Stream'
+              if (streamEnabled) {
+                stopStream()
+              } else {
+                startStream()
+              }
+            }
+            // Attach default on change action
+            document
+              .querySelectorAll('.default-action')
+              .forEach(el => {
+                el.onchange = () => updateConfig(el)
+              })
+          })
+        </script>
+          
+        <script>
+        var getStill = document.getElementById('get-still');
+        var ShowImage = document.getElementById('stream');
+        var canvas = document.getElementById("canvas");
+        var context = canvas.getContext("2d");  
+        var modelPath = document.getElementById('modelPath');
+        var result = document.getElementById('result');
+        var kind = document.getElementById('kind');        
+        let Model;
+        
+        async function LoadModel() {
+          if (modelPath.value=="") {
+            result.innerHTML = "Please input model path.";
+            return;
+          }
+    
+          result.innerHTML = "Please wait for loading model.";
+          
+          const URL = modelPath.value;
+          const modelURL = URL + "model.json";
+          const metadataURL = URL + "metadata.json";
+          if (kind.value=="image") {
+            Model = await tmImage.load(modelURL, metadataURL);
+          }
+          else if (kind.value=="pose") {
+            Model = await tmPose.load(modelURL, metadataURL);
+          }
+          maxPredictions = Model.getTotalClasses();
+          result.innerHTML = "";
+    
+          getStill.style.display = "block";
+          getStill.click();
         }
+    
+        async function predict() {
+          var data = "";
+          var maxClassName = "";
+          var maxProbability = "";
+    
+          canvas.setAttribute("width", ShowImage.width);
+          canvas.setAttribute("height", ShowImage.height);
+          context.drawImage(ShowImage, 0, 0, ShowImage.width, ShowImage.height); 
+           
+          if (kind.value=="image")
+            var prediction = await Model.predict(canvas);
+          else if (kind.value=="pose") {
+            var { pose, posenetOutput } = await Model.estimatePose(canvas);
+            var prediction = await Model.predict(posenetOutput);
+          }
+    
+          if (maxPredictions>0) {
+            for (let i = 0; i < maxPredictions; i++) {
+              if (i==0) {
+              maxClassName = prediction[i].className;
+              maxProbability = prediction[i].probability;
+              }
+              else {
+              if (prediction[i].probability>maxProbability) {
+                maxClassName = prediction[i].className;
+                maxProbability = prediction[i].probability;
+              }
+              }
+              data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
+            }
+            result.innerHTML = data;
+            result.innerHTML += "<br>Result: " + maxClassName + "," + maxProbability; 
 
-        document.getElementById('stream').onload = function () {
-            if (!Model || predictTimer) return;
-            predictTimer = setTimeout(async () => {
-                predictTimer = null;
-                var view = document.getElementById('stream');
-                var canvas = document.getElementById('canvas');
-                var context = canvas.getContext('2d');
-                var result = document.getElementById('result');
-
-                canvas.width = view.width;
-                canvas.height = view.height;
-                context.drawImage(view, 0, 0, view.width, view.height);
-
-                var prediction;
-                if (MODEL_KIND == "image") {
-                    prediction = await Model.predict(canvas);
-                } else {
-                    var { pose, posenetOutput } = await Model.estimatePose(canvas);
-                    prediction = await Model.predict(posenetOutput);
-                }
-
-                var data = "";
-                var maxClass = "", maxProb = 0;
-                for (let i = 0; i < maxPredictions; i++) {
-                    if (prediction[i].probability > maxProb) {
-                        maxClass = prediction[i].className;
-                        maxProb = prediction[i].probability;
-                    }
-                    data += prediction[i].className + "," + prediction[i].probability.toFixed(2) + "<br>";
-                }
-                result.innerHTML = data + "<br>Result: " + maxClass + "," + maxProb.toFixed(4);
-
-                fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
-            }, 250);
-        };
+            $.ajax({url: document.location.origin+'/control?serial='+maxClassName+";"+maxProbability+';stop', async: false});
+          }
+          else
+            result.innerHTML = "Unrecognizable";
+            
+          getStill.click();
+        }
+    
+        ShowImage.onload = function (event) {
+          if (Model) {
+          try { 
+            document.createEvent("TouchEvent");
+            setTimeout(function(){predict();},250);
+          }
+          catch(e) { 
+            predict();
+          } 
+          }
+        }    
         </script>
     </body>
 </html>)rawliteral";
