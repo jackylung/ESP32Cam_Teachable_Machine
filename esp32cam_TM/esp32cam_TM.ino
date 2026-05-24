@@ -102,6 +102,10 @@ httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 bool ledBlink = false;
 
+// 前向宣告（Arduino IDE 因 raw string literal 無法自動產生 prototype）
+void startCameraServer();
+void getCommand(char c);
+
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);  //關閉電源不穩就重開機的設定   
   Serial.begin(115200);
@@ -667,6 +671,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         var baseHost = document.location.origin;
         var streamUrl = baseHost + ':81';
         const MODEL_URL = "https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/";
+        const CACHE_BUST = "?v=" + Date.now();
         const MODEL_KIND = "image";
         let Model = null;
         let maxPredictions = 0;
@@ -739,9 +744,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
             result.innerHTML = "Loading model...";
             try {
                 if (MODEL_KIND == "image") {
-                    Model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+                    Model = await tmImage.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
                 } else {
-                    Model = await tmPose.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+                    Model = await tmPose.load(MODEL_URL + "model.json" + CACHE_BUST, MODEL_URL + "metadata.json" + CACHE_BUST);
                 }
                 maxPredictions = Model.getTotalClasses();
                 result.innerHTML = "";

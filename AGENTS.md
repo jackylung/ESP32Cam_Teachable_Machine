@@ -93,9 +93,10 @@ http://<IP>/control?blink=0  # 關閉 LED 慢閃
 3. 解壓縮後將 `model.json`、`metadata.json`、`*.bin` 複製到 `tm-model/` 目錄
 4. Git commit & push 到 GitHub
 5. 等待 GitHub Pages 部署完成（約 1-2 分鐘）
-6. 重新整理 ESP32-CAM 的瀏覽器頁面即可使用新模型
+6. 重新整理 ESP32-CAM 的瀏覽器頁面即可使用新模型（已加入 cache-busting 參數，跳過瀏覽器快取）
 
 > JS 會從 GitHub Pages 載入模型：`https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/`
+> 此 Repository 必須設為 **Public**，GitHub Pages 才能正常運作。
 
 ## 注意事項
 - 使用 ESP32 Arduino Core 3.x，LEDC API 為 `ledcAttach(pin, freq, resolution)` 新版語法

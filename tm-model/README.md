@@ -37,6 +37,7 @@ https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/model.json
 ---
 
 ## 注意事項
+- 此 Repository 必須設為 **Public**，GitHub Pages 才能正常運作
 - 請勿刪除或重新命名 `model.json`、`metadata.json`，否則 JS 無法載入
 - 如模型結構改變（不同分類數量），瀏覽器會自動適應新模型
 - 若瀏覽器快取舊模型，可按 `Ctrl+F5` 強制重新整理
