@@ -49,7 +49,7 @@ http://192.168.xxx.xxx/control?var=flash&val=value        // value = 0 ~ 255
 #include "camera_pins.h"
 
 // === 硬體腳位定義與控制參數 ===
-#include <Servo.h>
+#include <ESP32Servo.h>
 
 // 偵測結果 LED 指示
 #define LED1_PIN 12   //PET 偵測時點亮
