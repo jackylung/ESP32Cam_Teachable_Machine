@@ -73,6 +73,9 @@ const int servoDelayTime = 1000;  // 回到中心後等待時間 (ms)
 // 辨識觸發門檻
 float acceptanceRate = 0.7;  // 信心度大於此值才觸發舵機
 
+// 預測週期（ms）
+const int predictInterval = 1000;  // 預測迴圈間隔時間
+
 // 硬體狀態機
 enum HwState { HW_STARTUP, HW_IDLE, HW_TRIGGERED, HW_AT_POS, HW_RETURN };
 HwState hwState = HW_STARTUP;
@@ -217,7 +220,7 @@ void setup() {
     s->set_saturation(s, -2); // lower the saturation
   }
   // drop down frame size for higher initial frame rate
-  s->set_framesize(s, FRAMESIZE_QVGA);    //解析度 UXGA(1600x1200), SXGA(1280x1024), XGA(1024x768), SVGA(800x600), VGA(640x480), CIF(400x296), QVGA(320x240), HQVGA(240x176), QQVGA(160x120), QXGA(2048x1564 for OV3660)
+  s->set_framesize(s, FRAMESIZE_QQVGA);    //預設解析度 QQVGA(160x120)，改善流暢度
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
   s->set_vflip(s, 1);  //垂直翻轉
@@ -726,10 +729,10 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                                 <option value="8">XGA(1024x768)</option>
                                 <option value="7">SVGA(800x600)</option>
                                 <option value="6">VGA(640x480)</option>
-                                <option value="5" selected="selected">CIF(400x296)</option>
+                                <option value="5">CIF(400x296)</option>
                                 <option value="4">QVGA(320x240)</option>
                                 <option value="3">HQVGA(240x176)</option>
-                                <option value="0">QQVGA(160x120)</option>
+                                <option value="0" selected="selected">QQVGA(160x120)</option>
                             </select>
                         </div>
                         <div class="input-group" id="quality-group">
@@ -881,7 +884,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 result.innerHTML = "";
                 log("loadModel: stopping blink, starting predict loop");
                 fetch(baseHost + '/control?cmd=blink;0');
-                setTimeout(predictLoop, 500);
+                setTimeout(predictLoop, predictInterval);
             } catch(e) {
                 log("loadModel ERROR: " + e.message);
                 result.innerHTML = "Model load failed: " + e.message;
@@ -922,7 +925,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
 
             fetch(baseHost + '/control?serial=' + maxClass + ';' + maxProb + ';stop');
 
-            setTimeout(predictLoop, 500);
+            setTimeout(predictLoop, predictInterval);
         }
         </script>
     </body>
@@ -931,7 +934,11 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
 //網頁首頁   http://192.168.xxx.xxx
 static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");
-    return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
+    char buf[64];
+    int n = snprintf(buf, sizeof(buf), "<script>var predictInterval=%d;</script>\n", predictInterval);
+    httpd_resp_send_chunk(req, buf, n);
+    httpd_resp_send_chunk(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 //自訂網址路徑要執行的函式
