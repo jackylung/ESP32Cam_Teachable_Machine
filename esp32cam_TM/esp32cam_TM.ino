@@ -373,9 +373,6 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       }  
       else if (cmd=="mac") {  //查詢MAC位址
         Feedback="STA MAC: "+WiFi.macAddress();
-      }  
-      else if (cmd=="restart") {
-        ESP.restart();
       }
 #if defined(CAMERA_MODEL_AI_THINKER)        
       else if (cmd=="digitalwrite") {
@@ -544,12 +541,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
               </div>
             </figure>
             <div id="result" style="color:red;font-size:18px;text-align:center;padding:10px;background:#222;border-radius:5px"></div>
-            <div id="debug" style="font-size:12px;color:#888;margin-top:8px;max-height:150px;overflow-y:auto;background:#1a1a1a;padding:6px;border-radius:4px"></div>
-            <section id="buttons">
-                <table>
-                <tr><td><button id="restart" onclick="restartESP()">Restart</button></td></tr>
-                </table>
-            </section>        
             <div id="logo">
                 <label for="nav-toggle-cb" id="nav-toggle">&#9776;&nbsp;&nbsp;Toggle settings</label>
             </div>
@@ -612,6 +603,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                     </nav>
                 </div>
             </div>
+            <div id="debug" style="font-size:12px;color:#888;margin-top:8px;max-height:150px;overflow-y:auto;background:#1a1a1a;padding:6px;border-radius:4px"></div>
         </section>
 
         <script>
@@ -630,20 +622,6 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 el.innerHTML = lines.slice(lines.length - 50).join("<br>");
             }
             el.scrollTop = el.scrollHeight;
-        }
-
-        var restartESP = function() {
-            document.body.innerHTML = '<div style="text-align:center;margin-top:40vh;font-size:20px">Restarting ESP32...<br><br><span style="font-size:14px;color:#888">Auto-reconnecting</span></div>';
-            fetch(document.location.origin + '/control?restart');
-            var poll = setInterval(function() {
-                fetch(document.location.origin + '/status')
-                    .then(function(r) { return r.json(); })
-                    .then(function() {
-                        clearInterval(poll);
-                        location.reload();
-                    })
-                    .catch(function() {});
-            }, 1000);
         }
         const MODEL_KIND = "image";
         let Model = null;
