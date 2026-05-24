@@ -49,11 +49,11 @@ http://192.168.xxx.xxx/control?var=flash&val=value        // value = 0 ~ 255
 #include "camera_pins.h"
 
 //輸入WIFI連線帳號密碼
-const char* ssid     = "Smile 3A";   //your network SSID
-const char* password = "3a2l20220303";   //your network password
+const char* ssid     = "ktssmartbin";   //your network SSID
+const char* password = "26059033";   //your network password
 
 //輸入AP端連線帳號密碼
-const char* apssid = "ESP32-ONE";
+const char* apssid = "ESP32CAM";
 const char* appassword = "12345678";         //AP密碼至少要8個字元以上
 
 #include <WiFi.h>
@@ -223,6 +223,8 @@ void setup() {
   } 
 
   if (WiFi.status() != WL_CONNECTED) {    //若連線失敗
+    WiFi.disconnect();  // 停止 STA 連線嘗試，避免 softAP 衝突
+    delay(100);
     WiFi.softAP((WiFi.softAPIP().toString()+"_"+(String)apssid).c_str(), appassword);
            
 #if defined(CAMERA_MODEL_AI_THINKER)
