@@ -45,6 +45,22 @@ ESP32Cam_Teachable_Machine/
 4. 上傳完成後拔掉 IO0 跳線
 5. 按 RST 重啟
 
+## 硬體接線（外部控制）
+| ESP32-CAM | 元件 |
+|-----------|------|
+| GPIO4     | 內建閃光燈（PWM 0~255） |
+| GPIO12    | LED1（PET 偵測時點亮） |
+| GPIO13    | LED2（CAN 偵測時點亮） |
+| GPIO14    | 舵機信號線 |
+
+## 控制邏輯
+1. **開機校準**：舵機移至中心 → 最大角度 → 回中心，確認運作正常
+2. **待機狀態**：LED1 + LED2 同時亮起，舵機停在中心位置，等待辨識
+3. **PET 偵測**（信心度 > 70%）：LED1 亮、LED2 滅，舵機轉至 `servoPosMax`（125°），停留 1 秒後回中心，LED1+LED2 重新亮起
+4. **CAN 偵測**（信心度 > 70%）：LED2 亮、LED1 滅，舵機轉至 `servoPosMin`（55°），停留 1 秒後回中心，LED1+LED2 重新亮起
+
+所有控制參數統一寫在程式開頭（腳位定義、舵機角度、門檻值），可在 `#define` 與 `const int` 區塊集中修改。
+
 ## Wi-Fi 設定
 ESP32-CAM 以 **AP 模式（Wi-Fi 基地台）** 運作，手機直接連接 ESP32 的 AP，不需要額外路由器或熱點。
 
@@ -69,7 +85,7 @@ const char* appassword = "12345678";       // AP 密碼（至少 8 字元）
 
 ## 頁面配置
 - **偵測結果**：顯示在影像下方、設定選單上方
-- **Restart 按鈕**：已移除
+- **日誌**：顯示在設定選單下方
 
 ## 設定頁面功能
 | 設定 | 說明 |
@@ -93,6 +109,7 @@ http://<IP>/control?ip       # 取得 AP/STA IP
 http://<IP>/control?flash=val # 控制閃光燈
 http://<IP>/control?blink=1  # 啟動 LED 慢閃
 http://<IP>/control?blink=0  # 關閉 LED 慢閃
+http://<IP>/control?serial=<class>;<confidence>;stop  # 傳遞 TM 辨識結果
 ```
 
 ## 更新 TM 模型（不需重燒韌體）
@@ -109,4 +126,5 @@ http://<IP>/control?blink=0  # 關閉 LED 慢閃
 ## 注意事項
 - 使用 ESP32 Arduino Core 3.x，LEDC API 為 `ledcAttach(pin, freq, resolution)` 新版語法
 - 如需支援 Core 2.x，需將 `ledcAttach` 改回 `ledcAttachPin` + `ledcSetup`
+- 舵機控制使用 Arduino `Servo.h` 函式庫（ESP32 內建）
 - 不支援 LCD 顯示（已移除相關程式碼）

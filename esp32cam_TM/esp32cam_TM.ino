@@ -48,6 +48,38 @@ http://192.168.xxx.xxx/control?var=flash&val=value        // value = 0 ~ 255
 
 #include "camera_pins.h"
 
+// === 硬體腳位定義與控制參數 ===
+#include <Servo.h>
+
+// 偵測結果 LED 指示
+#define LED1_PIN 12   //PET 偵測時點亮
+#define LED2_PIN 13   //CAN 偵測時點亮
+#define SERVO_PIN 14  //PET→servoPosMax, CAN→servoPosMin
+
+// 舵機位置（角度 0~180）
+const int servoPosCenter = 90;
+const int servoPosMax    = 90 + 35;
+const int servoPosMin    = 90 - 35;
+const int servoStopTime  = 1000;  // 到達定位後停留時間 (ms)
+const int servoDelayTime = 1000;  // 回到中心後等待時間 (ms)
+
+// 辨識觸發門檻
+float acceptanceRate = 0.7;  // 信心度大於此值才觸發舵機
+
+// 硬體狀態機
+enum HwState { HW_STARTUP, HW_IDLE, HW_TRIGGERED, HW_AT_POS, HW_RETURN };
+HwState hwState = HW_STARTUP;
+unsigned long hwTimer = 0;
+String hwClass = "";         // 當前觸發的類別 ("PET" / "CAN")
+int hwTargetPos = servoPosCenter;
+bool hwStartupDone = false;
+
+// 由 HTTP handler 寫入、loop() 讀取的偵測結果佇列
+String pendingClass = "";
+float pendingProb = 0.0;
+bool pendingDetection = false;
+Servo myservo;
+
 // AP 網路設定（ESP32-CAM 以 AP 模式運作，手機直接連接）
 const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";         //AP密碼至少要8個字元以上
@@ -192,6 +224,29 @@ void setup() {
   startCameraServer();
 
 #if defined(CAMERA_MODEL_AI_THINKER)
+  // 初始化硬體控制
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, LOW);
+  myservo.attach(SERVO_PIN);
+  
+  // 開機校準：中心→最大→退回中心，確認舵機正常
+  Serial.println("Servo calibration start...");
+  myservo.write(servoPosCenter);
+  delay(servoStopTime);
+  myservo.write(servoPosMax);
+  delay(servoStopTime);
+  myservo.write(servoPosCenter);
+  delay(servoStopTime);
+  Serial.println("Servo calibration done");
+  
+  // 進入待機狀態
+  digitalWrite(LED1_PIN, HIGH);
+  digitalWrite(LED2_PIN, HIGH);
+  hwState = HW_IDLE;
+  hwStartupDone = true;
+  
   pinMode(4, OUTPUT);
   digitalWrite(4, LOW);
 #endif
@@ -208,6 +263,56 @@ void loop() {
       ledState = !ledState;
       digitalWrite(4, ledState ? HIGH : LOW);
       lastBlink = now;
+    }
+  }
+
+  // 硬體狀態機（非阻塞）
+  if (hwStartupDone) {
+    // 檢查是否有新的偵測結果
+    if (pendingDetection && hwState == HW_IDLE) {
+      pendingDetection = false;
+      String cls = pendingClass;
+      float prob = pendingProb;
+      if (cls == "PET" && prob > acceptanceRate) {
+        hwClass = "PET";
+        hwTargetPos = servoPosMax;
+        hwState = HW_TRIGGERED;
+      } else if (cls == "CAN" && prob > acceptanceRate) {
+        hwClass = "CAN";
+        hwTargetPos = servoPosMin;
+        hwState = HW_TRIGGERED;
+      }
+    }
+    switch (hwState) {
+      case HW_TRIGGERED:
+        if (hwClass == "PET") {
+          digitalWrite(LED1_PIN, HIGH);
+          digitalWrite(LED2_PIN, LOW);
+        } else {
+          digitalWrite(LED1_PIN, LOW);
+          digitalWrite(LED2_PIN, HIGH);
+        }
+        myservo.write(hwTargetPos);
+        hwTimer = millis();
+        hwState = HW_AT_POS;
+        break;
+      case HW_AT_POS:
+        if (millis() - hwTimer >= servoStopTime) {
+          myservo.write(servoPosCenter);
+          hwTimer = millis();
+          hwState = HW_RETURN;
+        }
+        break;
+      case HW_RETURN:
+        if (millis() - hwTimer >= servoDelayTime) {
+          digitalWrite(LED1_PIN, HIGH);
+          digitalWrite(LED2_PIN, HIGH);
+          hwState = HW_IDLE;
+          hwClass = "";
+        }
+        break;
+      default:
+        break;
     }
   }
 #endif
@@ -437,6 +542,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         if (P1!="" && P1!="stop") Serial.println(P1);
         if (P2!="" && P2!="stop") Serial.println(P2);
         Serial.println();
+        // 轉發偵測結果給硬體狀態機
+        if (hwStartupDone) {
+            pendingClass = P1;
+            pendingProb = P2.toFloat();
+            pendingDetection = true;
+        }
       }       
       else {
         Feedback="Command is not defined";
