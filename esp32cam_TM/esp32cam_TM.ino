@@ -674,7 +674,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
         const MODEL_URL = "https://jackylung.github.io/ESP32Cam_Teachable_Machine/tm-model/";
         const CACHE_BUST = "?v=" + Date.now();
 
-        function log(msg) {
+        var log = function(msg) {
             console.log(msg);
             var el = document.getElementById('debug');
             if (el) el.innerHTML += msg + "<br>";
