@@ -53,7 +53,7 @@ const char* ssid     = "ktssmartbin";   //your network SSID
 const char* password = "26059033";   //your network password
 
 //輸入AP端連線帳號密碼
-const char* apssid = "ESP32CAM";
+const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";         //AP密碼至少要8個字元以上
 
 #include <WiFi.h>
@@ -101,6 +101,7 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 bool ledBlink = false;
+bool staConnected = false;
 
 // 前向宣告（Arduino IDE 因 raw string literal 無法自動產生 prototype）
 void startCameraServer();
@@ -184,20 +185,24 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
-  WiFi.mode(WIFI_AP);
+  WiFi.disconnect(true);  // 清除任何自動連線狀態
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP((String)apssid, appassword);
   delay(500);
-  
-  Serial.println("");
+
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP());
   Serial.println("");
-  
-  startCameraServer(); 
+
+  // 先啟動 Web Server，讓 AP 用戶端可以立即連線
+  startCameraServer();
+
+  // 非阻塞 STA 連線（背景執行，不影響 AP 服務）
+  WiFi.begin(ssid, password);
+  Serial.println("STA connection initiated (non-blocking)");
 
 #if defined(CAMERA_MODEL_AI_THINKER)
-  //設定閃光燈為低電位
   pinMode(4, OUTPUT);
   digitalWrite(4, LOW);
 #endif
@@ -205,6 +210,7 @@ void setup() {
 
 void loop() {
 #if defined(CAMERA_MODEL_AI_THINKER)
+  // LED 慢閃（模型載入中）
   static unsigned long lastBlink = 0;
   static bool ledState = false;
   if (ledBlink) {
@@ -213,6 +219,30 @@ void loop() {
       ledState = !ledState;
       digitalWrite(4, ledState ? HIGH : LOW);
       lastBlink = now;
+    }
+  }
+
+  // STA 連線狀態監控（非阻塞背景檢查）
+  static unsigned long lastStaRetry = 0;
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!staConnected) {
+      staConnected = true;
+      // STA 連線成功，更新 AP SSID 顯示客戶端 IP
+      WiFi.softAP((WiFi.localIP().toString()+"_"+(String)apssid).c_str(), appassword);
+      Serial.print("STA connected: ");
+      Serial.println(WiFi.localIP());
+    }
+  } else {
+    if (staConnected) {
+      staConnected = false;
+      // STA 斷線，恢復預設 AP SSID
+      WiFi.softAP((String)apssid, appassword);
+      Serial.println("STA disconnected, restoring AP SSID");
+    }
+    // 每 30 秒重試 STA 連線（讓使用者之後開熱點也能連上）
+    if (millis() - lastStaRetry > 30000) {
+      lastStaRetry = millis();
+      WiFi.begin(ssid, password);
     }
   }
 #endif
