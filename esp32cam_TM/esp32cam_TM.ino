@@ -2,13 +2,13 @@
  * ESP32-CAM Teachable Machine
  * 
  * 連線模式切換：取消下方其中一行的註解來選擇模式（只能選擇一種）
- *   WIFI_MODE_AP  — ESP32 作為基地台，手機直接連接（固定 IP 192.168.4.1）
- *   WIFI_MODE_STA — ESP32 連線到現有 WiFi 路由器（IP 由 DHCP 指派）
+ *   WIFI_AP_MODE  — ESP32 作為基地台，手機直接連接（固定 IP 192.168.4.1）
+ *   WIFI_STA_MODE — ESP32 連線到現有 WiFi 路由器（IP 由 DHCP 指派）
  */
 
 // === 請在此選擇連線模式（二選一）===
-#define WIFI_MODE_AP
-// #define WIFI_MODE_STA
+//#define WIFI_AP_MODE
+#define WIFI_STA_MODE
 
 /*
 http://192.168.xxx.xxx             //網頁首頁管理介面
@@ -88,16 +88,16 @@ bool pendingDetection = false;
 Servo myservo;
 
 // === WiFi 連線模式 ===
-#ifdef WIFI_MODE_AP
+#ifdef WIFI_AP_MODE
 // AP 模式設定
 const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";
-#elif defined(WIFI_MODE_STA)
+#elif defined(WIFI_STA_MODE)
 // STA 模式設定（連線到現有 WiFi 路由器）
 const char* sta_ssid = "Smile 3A";
 const char* sta_password = "3a2l20220303";
 #else
-#error "Please define WIFI_MODE_AP or WIFI_MODE_STA"
+#error "Please define WIFI_AP_MODE or WIFI_STA_MODE"
 #endif
 
 #include <WiFi.h>
@@ -228,15 +228,15 @@ void setup() {
   ledcAttach(4, 5000, 8);
 #endif
   
-  // === WiFi 連線（依 WIFI_MODE_AP / WIFI_MODE_STA 二選一）===
-#ifdef WIFI_MODE_AP
+  // === WiFi 連線（依 WIFI_AP_MODE / WIFI_STA_MODE 二選一）===
+#ifdef WIFI_AP_MODE
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP((String)apssid, appassword);
   delay(500);
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP());
-#elif defined(WIFI_MODE_STA)
+#elif defined(WIFI_STA_MODE)
   WiFi.mode(WIFI_STA);
   WiFi.begin(sta_ssid, sta_password);
   Serial.print("Connecting to WiFi");
@@ -533,7 +533,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         Feedback=String(touchRead(P1.toInt()));
       }
 #endif      
-#ifdef WIFI_MODE_AP
+#ifdef WIFI_AP_MODE
       else if (cmd=="resetwifi") {  //重設網路連線  
         for (int i=0;i<2;i++) {
           WiFi.begin(P1.c_str(), P2.c_str());
