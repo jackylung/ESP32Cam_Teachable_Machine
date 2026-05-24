@@ -223,7 +223,6 @@ void loop() {
   }
 
   // STA 連線狀態監控（非阻塞背景檢查）
-  static unsigned long lastStaRetry = 0;
   if (WiFi.status() == WL_CONNECTED) {
     if (!staConnected) {
       staConnected = true;
@@ -235,14 +234,9 @@ void loop() {
   } else {
     if (staConnected) {
       staConnected = false;
-      // STA 斷線，恢復預設 AP SSID
+      // STA 斷線，恢復預設 AP SSID（不自動重連，避免干擾 AP）
       WiFi.softAP((String)apssid, appassword);
       Serial.println("STA disconnected, restoring AP SSID");
-    }
-    // 每 30 秒重試 STA 連線（讓使用者之後開熱點也能連上）
-    if (millis() - lastStaRetry > 30000) {
-      lastStaRetry = millis();
-      WiFi.begin(ssid, password);
     }
   }
 #endif
