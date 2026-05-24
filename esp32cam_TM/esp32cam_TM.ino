@@ -542,10 +542,12 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 <img id="stream" src="" crossorigin="anonymous">
                 <canvas id="canvas" width="0" height="0" style="display:none"></canvas>
               </div>
-            </figure>         
+            </figure>
+            <div id="result" style="color:red;font-size:18px;text-align:center;padding:10px;background:#222;border-radius:5px"></div>
+            <div id="debug" style="font-size:12px;color:#888;margin-top:8px;max-height:150px;overflow-y:auto;background:#1a1a1a;padding:6px;border-radius:4px"></div>
             <section id="buttons">
                 <table>
-                <tr><td><button id="restart" onclick="try{fetch(document.location.origin+'/control?restart');}catch(e){}">Restart</button></td></tr>
+                <tr><td><button id="restart" onclick="restartESP()">Restart</button></td></tr>
                 </table>
             </section>        
             <div id="logo">
@@ -611,10 +613,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 </div>
             </div>
         </section>
-        <br>
-        <div id="result" style="color:red;font-size:18px;text-align:center;padding:10px;background:#222;border-radius:5px"></div>
-        <div id="debug" style="font-size:12px;color:#888;margin-top:8px;max-height:150px;overflow-y:auto;background:#1a1a1a;padding:6px;border-radius:4px"></div>
-        
+
         <script>
         var baseHost = document.location.origin;
         var streamUrl = baseHost + ':81';
@@ -631,6 +630,20 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(<!doctype html>
                 el.innerHTML = lines.slice(lines.length - 50).join("<br>");
             }
             el.scrollTop = el.scrollHeight;
+        }
+
+        var restartESP = function() {
+            document.body.innerHTML = '<div style="text-align:center;margin-top:40vh;font-size:20px">Restarting ESP32...<br><br><span style="font-size:14px;color:#888">Auto-reconnecting</span></div>';
+            fetch(document.location.origin + '/control?restart');
+            var poll = setInterval(function() {
+                fetch(document.location.origin + '/status')
+                    .then(function(r) { return r.json(); })
+                    .then(function() {
+                        clearInterval(poll);
+                        location.reload();
+                    })
+                    .catch(function() {});
+            }, 1000);
         }
         const MODEL_KIND = "image";
         let Model = null;
