@@ -11,6 +11,7 @@ ESP32-CAM (AI Thinker) 結合 TensorFlow.js Teachable Machine 的即時影像辨
 ```
 ESP32Cam_Teachable_Machine/
 ├── AGENTS.md                  # 本專案說明文件
+├── .gitignore                 # 忽略備份目錄 (*副本*/、references/)
 ├── esp32cam_TM/
 │   ├── esp32cam_TM.ino        # 主程式（Arduino IDE 專案）
 │   └── camera_pins.h          # 各型號相機腳位定義
@@ -124,6 +125,8 @@ const char* sta_password = "your_wifi_password";
 |------|--------|------|
 | `predictInterval` | 1000 | 預測間隔（ms），每次向 `/capture` 索取單張 JPEG |
 | `acceptanceRate` | 0.7 | 觸發舵機/LED 的信心度門檻 |
+| `servoStopTime` | 1000 | 舵機抵達定位後停留時間（ms） |
+| `servoDelayTime` | 1000 | 舵機回中心後等待時間（ms） |
 
 ## 自訂 HTTP API
 ```
