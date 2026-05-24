@@ -104,7 +104,6 @@ http://<IP>/control?cmd=<command>;P1;P2;...;P9
 http://<IP>/control?var=<variable>&val=<value>
 http://<IP>/capture         # 取得單張影像
 http://<IP>/status           # 取得目前設定值 (JSON)
-http://<IP>/control?restart  # 重啟 ESP32
 http://<IP>/control?ip       # 取得 AP/STA IP
 http://<IP>/control?flash=val # 控制閃光燈
 http://<IP>/control?blink=1  # 啟動 LED 慢閃
