@@ -7,8 +7,8 @@
  */
 
 // === 請在此選擇連線模式（二選一）===
-#define WIFI_AP_MODE
-//#define WIFI_STA_MODE
+//#define WIFI_AP_MODE
+#define WIFI_STA_MODE
 
 /*
 http://192.168.xxx.xxx             //網頁首頁管理介面
@@ -97,8 +97,8 @@ const char* apssid = "KTS_SmartBin_AP";
 const char* appassword = "12345678";
 #elif defined(WIFI_STA_MODE)
 // STA 模式設定（連線到現有 WiFi 路由器）
-const char* sta_ssid = "Smile 3A";
-const char* sta_password = "3a2l20220303";
+const char* sta_ssid = "KTSY5";
+const char* sta_password = "kts26059033";
 #else
 #error "Please define WIFI_AP_MODE or WIFI_STA_MODE"
 #endif

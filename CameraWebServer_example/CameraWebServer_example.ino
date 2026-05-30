@@ -10,8 +10,8 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char *ssid = "Smile 3A";
-const char *password = "3a2l20220303";
+const char *ssid = "KTSY5";
+const char *password = "kts26059033";
 
 void startCameraServer();
 void setupLedFlash();
